@@ -1,0 +1,10 @@
+{
+  "name": "forca-cupim-lp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Landing page estatica de descupinizacao da Forca Dedetizadora.",
+  "scripts": {
+    "dev": "python -m http.server 4173",
+    "start": "python -m http.server 4173"
+  }
+}
