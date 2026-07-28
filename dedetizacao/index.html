@@ -722,6 +722,13 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       <h3>Quero minha casa protegida</h3>
       <p>Preencha em 30 segundos. Nossa equipe responde ainda hoje pelo WhatsApp.</p>
       <form id="lead-form">
+        <!-- Campos ocultos UTM -->
+        <input type="hidden" name="utm_source" id="lead-utm-source">
+        <input type="hidden" name="utm_medium" id="lead-utm-medium">
+        <input type="hidden" name="utm_campaign" id="lead-utm-campaign">
+        <input type="hidden" name="utm_term" id="lead-utm-term">
+        <input type="hidden" name="utm_content" id="lead-utm-content">
+        <input type="hidden" name="pagina" value="dedetizacao">
         <div class="field">
           <label for="a-nome">Nome</label>
           <input id="a-nome" name="nome" type="text" placeholder="Seu nome completo" required>
@@ -868,6 +875,13 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       Olá! 👋 Preencha os dados abaixo para receiving seu <em>orçamento grátis</em> direto pelo WhatsApp.
     </div>
     <form class="wa-panel-form" id="wa-panel-form">
+      <!-- Campos ocultos UTM -->
+      <input type="hidden" name="utm_source" id="wp-utm-source">
+      <input type="hidden" name="utm_medium" id="wp-utm-medium">
+      <input type="hidden" name="utm_campaign" id="wp-utm-campaign">
+      <input type="hidden" name="utm_term" id="wp-utm-term">
+      <input type="hidden" name="utm_content" id="wp-utm-content">
+      <input type="hidden" name="pagina" value="dedetizacao">
       <div class="field">
         <label for="wp-nome">Seu nome</label>
         <input id="wp-nome" name="nome" type="text" placeholder="Nome completo" required>
@@ -907,6 +921,61 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 </div>
 
 <script>
+  // ============================================================
+  // UTM: lê parâmetros da URL e preenche campos ocultos
+  // ============================================================
+  (function(){
+    var params = new URLSearchParams(window.location.search);
+    var utms = ['utm_source','utm_medium','utm_campaign','utm_term','utm_content'];
+    utms.forEach(function(key){
+      var val = params.get(key) || '';
+      var el1 = document.getElementById('lead-' + key.replace('_','-'));
+      if(el1) el1.value = val;
+      var el2 = document.getElementById('wp-' + key.replace('_','-'));
+      if(el2) el2.value = val;
+    });
+  })();
+
+  // ============================================================
+  // Webhook: envia dados do lead para o n8n via POST
+  // ============================================================
+  var WEBHOOK_URL = 'https://n8n.v4lisboatech.com.br/webhook-test/02b14288-a3b8-4dcb-8d09-ce9a956facce';
+
+  function sendWebhook(payload, onSuccess) {
+    fetch(WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    .then(function() {
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({
+        event: 'form_enviado',
+        form_nome: payload.nome,
+        form_pagina: payload.pagina || 'dedetizacao',
+        form_origem: payload.utm_source || '(direct)'
+      });
+      if (typeof onSuccess === 'function') onSuccess();
+    })
+    .catch(function(err) {
+      console.warn('[Webhook] Falha no envio:', err);
+      if (typeof onSuccess === 'function') onSuccess();
+    });
+  }
+
+  function getUtmPayload(prefix) {
+    function v(id) { var el = document.getElementById(id); return el ? el.value : ''; }
+    return {
+      utm_source:   v(prefix + 'utm-source'),
+      utm_medium:   v(prefix + 'utm-medium'),
+      utm_campaign: v(prefix + 'utm-campaign'),
+      utm_term:     v(prefix + 'utm-term'),
+      utm_content:  v(prefix + 'utm-content'),
+      pagina:       'dedetizacao',
+      url:          window.location.href
+    };
+  }
+
   // === Painel lateral WhatsApp ===
   var waOverlay = document.getElementById('wa-overlay');
   var waPanel = document.getElementById('wa-panel');
@@ -954,31 +1023,40 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     var tel = document.getElementById('wp-zap').value.trim();
     var situacao = document.getElementById('wp-situacao').value;
     var onde = document.getElementById('wp-onde').value;
-    var texto = 'Olá! Meu nome é ' + nome + ' e quero um orçamento grátis de dedetização.' +
-      '\nSituação: ' + situacao +
-      '\nLocal: ' + onde +
-      '\nMeu WhatsApp: ' + tel;
-    window.open('https://wa.me/5584991510888?text=' + encodeURIComponent(texto), '_blank');
-    closeWaPanel();
-    // Limpa o form
-    waPanelForm.reset();
-    wpZap.value = '';
+    var payload = Object.assign(getUtmPayload('wp-'), {
+      nome: nome, whatsapp: tel, situacao: situacao, onde: onde, formulario: 'painel-whatsapp'
+    });
+    sendWebhook(payload, function(){
+      var texto = 'Olá! Meu nome é ' + nome + ' e quero um orçamento grátis de dedetização.' +
+        '\nSituação: ' + situacao +
+        '\nLocal: ' + onde +
+        '\nMeu WhatsApp: ' + tel;
+      window.open('https://wa.me/5584991510888?text=' + encodeURIComponent(texto), '_blank');
+      closeWaPanel();
+      waPanelForm.reset();
+      wpZap.value = '';
+    });
   });
 
-  // === Formulário inline existente (mantido) ===
+  // === Formulário inline ===
   document.getElementById('lead-form').addEventListener('submit', function (e) {
     e.preventDefault();
     var nome = document.getElementById('a-nome').value.trim();
     var tel = document.getElementById('a-zap').value.trim();
     var situacao = document.getElementById('a-situacao').value;
     var onde = document.getElementById('a-onde').value;
-    var texto = 'Olá! Meu nome é ' + nome + ' e quero um orçamento grátis de dedetização.' +
-      '\nSituação: ' + situacao +
-      '\nLocal: ' + onde +
-      '\nMeu WhatsApp: ' + tel;
-    window.open('https://wa.me/5584991510888?text=' + encodeURIComponent(texto), '_blank');
-    this.style.display = 'none';
-    document.getElementById('form-ok').style.display = 'block';
+    var payload = Object.assign(getUtmPayload('lead-'), {
+      nome: nome, whatsapp: tel, situacao: situacao, onde: onde, formulario: 'lead-form'
+    });
+    sendWebhook(payload, function(){
+      var texto = 'Olá! Meu nome é ' + nome + ' e quero um orçamento grátis de dedetização.' +
+        '\nSituação: ' + situacao +
+        '\nLocal: ' + onde +
+        '\nMeu WhatsApp: ' + tel;
+      window.open('https://wa.me/5584991510888?text=' + encodeURIComponent(texto), '_blank');
+      this.style.display = 'none';
+      document.getElementById('form-ok').style.display = 'block';
+    }.bind(this));
   });
 
   // Máscara de telefone no form inline
